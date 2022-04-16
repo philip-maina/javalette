@@ -1,0 +1,115 @@
+https://medium.com/basecs/reading-code-right-with-some-help-from-the-lexer-63d0be3d21d
+https://medium.com/basecs/grammatically-rooting-oneself-with-parse-trees-ec9daeda7dad
+https://medium.com/basecs/a-deeper-inspection-into-compilation-and-interpretation-d98952ebc842
+
+
+Parse tree algorithm
+
+Reference:
+https://medium.com/basecs/deep-dive-through-a-graph-dfs-traversal-8177df5d0f13
+
+Assume we have an ordered sequence of objects of type PDA::Rule < Struct.new(:pop_character, :push_characters)
+1.  PDA::Rule.new('S', [ 'W' ])
+2.  PDA::Rule.new('W', [ 'w', '(', 'E', ')', '{', 'S', '}' ])
+3.  PDA::Rule.new('w', [])
+4.  PDA::Rule.new('(', [])
+5.  PDA::Rule.new('E', [ 'L' ])
+6.  PDA::Rule.new('L', [ 'M', '<', 'L' ])
+7.  PDA::Rule.new('M', [ 'T' ])
+8.  PDA::Rule.new('T', [ 'v' ])
+9.  PDA::Rule.new('v', [])
+10. PDA::Rule.new('<', [])
+11. PDA::Rule.new('L', [ 'M' ])
+12. PDA::Rule.new('M', [ 'T' ])
+13. PDA::Rule.new('T', [ 'n' ])
+14. PDA::Rule.new('n', [])
+15. PDA::Rule.new(')', [])
+16. .....
+...........
+
+By following the rules in order, one is supposed to form the tree below in depth-first approach
+NOTE: You've reached the end of a branch when the push characters is an empty array
+
+Can you find an algorithm to do so ?
+
+Approach:
+
+Assume we have a Node entity as follows:
+class Node
+  attr_accessor :name, :children, :visited
+  def initialize(name:, children: [], visited: false)
+    @name     = name
+    @children = children
+    @visited  = visited
+  end
+
+  def visited?
+    visited
+  end
+
+  def to_h
+    { "#{name}" => children.map(&:to_h) }
+  end
+end
+
+Assume we also have a stack entity as follows:
+class Stack < Struct.new(:contents)
+  def top
+    contents.last
+  end
+
+  def pop
+    contents.pop
+  end
+
+  def push(characters)
+    contents.push(*characters)
+  end
+end
+
+
+1. Create a Root Node and immediately push the start symbol 'S' as a child of the root node
+   { 
+     name: :root, 
+     children: [{ name: 'S', children: [], visited: false }],
+     visited: true
+   }
+2. Push the root node to the top of a stack that we will use to track the current node that we are
+   searching through. Also the stack helps in backtracking.
+
+3. For each rule:
+     a. We know that the current node is the node that is on top of the stack
+     b. Find a node within the current node's unvisited children where the current rule's
+        pop character is the same as the name of the child.
+     c. If the node exists:
+          • Make the found node's children to be the push characters of the current rule.
+          • Mark the found node as visited
+          • If the found node has children, then push the found node to the top of 
+            the stack hence making it the current node.
+     d. If the node does not exist:
+          • Pop the node at the top of the stack (backtracking step)
+          • Go back to step 3a. with the same current rule. (recursion step)
+
+4. At the end print the root node and all it's children.
+
+
+def parse_tree
+  root_node = Node.new(name: :root, children: [ Node.new(name: 'S') ], visited: true)
+  stack = Stack.new([root_node])
+  rules.each { |rule| process_rule(rule, stack) }
+  root_node.to_h
+end
+
+def process_rule(rule, stack)
+  current_node = stack.top
+  node = current_node.children.find { |node| !node.visited? }
+  
+  if node
+    node.children = rule.push_characters.map { |push_character| Node.new(name: push_character) }
+    node.visited = true
+    stack.push(node) if node.children.present?
+  else
+    stack.pop
+    process_rule(rule, stack)
+  end
+end
